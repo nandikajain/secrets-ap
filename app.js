@@ -52,8 +52,8 @@ passport.use(new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
-  //  console.log(profile);
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+    console.log(profile);
+    User.findOrCreate({ username: profile.id}, function (err, user) {
       return cb(err, user);
     });
   }
@@ -104,9 +104,12 @@ app.get("/submit", (req,res)=>{
 
 app.get('/auth/google',
   passport.authenticate('google', { scope: ['profile'] }));
-
+// app.route('/auth/google')
+//     .get( async (req, res) => {
+//         passport.authenticate('google', {scope: ['profile']})(req, res);
+//     });
   app.get('/auth/google/secrets',
-    passport.authenticate('google', { failureRedirect: '/login' }),
+    passport.authenticate('google', { failureRedirect: '/login' ,prompt: 'select_account'}),
     function(req, res) {
 
       res.redirect('/secrets');
