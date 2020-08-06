@@ -7,7 +7,8 @@ const mongoose= require("mongoose");
 const session = require('express-session')
 const passportLocalMongoose=require("passport-local-mongoose");
 const passport=require("passport");
-
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate= require("mongoose-findorcreate");
 const app=express();
 app.use(express.static("public"));
 app.set("view engine", "ejs");
@@ -25,17 +26,37 @@ app.use(passport.session());
 mongoose.connect("mongodb://localhost:27017/userDB",{useNewUrlParser:true, useFindAndModify:false, useCreateIndex:true, useUnifiedTopology:true});
 const userSchema= new mongoose.Schema({
   email:String,
-  password:String
+  password:String,
+  googleId:String
 });
 userSchema.plugin(passportLocalMongoose);
-
+userSchema.plugin(findOrCreate);
 const User=mongoose.model("user", userSchema);
-// use static authenticate method of model in LocalStrategy
 
 passport.use(User.createStrategy());
 
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+passport.serializeUser(function(user, done) {
+  done(null, user.id);
+});
+
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function(err, user) {
+    done(err, user);
+  });
+});
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 app.get("/",(req,res)=>{
 
@@ -61,6 +82,16 @@ app.get("/logout", (req,res)=>{
   req.logout();
   res.redirect("/");
 })
+
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile'] }));
+
+  app.get('/auth/google/secrets',
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    function(req, res) {
+
+      res.redirect('/secrets');
+    });
 
 app.post("/register",(req,res)=>
 {
