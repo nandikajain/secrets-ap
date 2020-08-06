@@ -23,11 +23,12 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-mongoose.connect("mongodb://localhost:27017/userDB",{useNewUrlParser:true, useFindAndModify:false, useCreateIndex:true, useUnifiedTopology:true});
+mongoose.connect("mongodb://localhost:27017/userDB",{useNewUrlParser:true, useFindAndModify:false, useCreateIndex:true, useUnifiedTopology:true, autoIndex:false});
 const userSchema= new mongoose.Schema({
   email:String,
   password:String,
-  googleId:String
+  googleId:String,
+  secret: String
 });
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
@@ -51,7 +52,7 @@ passport.use(new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
-    console.log(profile);
+  //  console.log(profile);
     User.findOrCreate({ googleId: profile.id }, function (err, user) {
       return cb(err, user);
     });
@@ -73,14 +74,32 @@ app.get("/register",(req,res)=>{
 });
 
 app.get("/secrets", (req,res)=>{
-  if(req.isAuthenticated()){res.render("secrets");}
-  else{
-    res.redirect("/");
+  // if(req.isAuthenticated()){res.render("secrets");}
+  // else{
+  //   res.redirect("/");
+  // }
+User.find({"secret":{$ne:null}}, (err, foundUsers)=>{
+  if(err){
+    console.log(err);
   }
+  else{
+    if(foundUsers)
+    {
+      res.render("secrets", {userWithSecrets: foundUsers});
+    }
+  }
+})
+
 });
 app.get("/logout", (req,res)=>{
   req.logout();
   res.redirect("/");
+})
+app.get("/submit", (req,res)=>{
+  if(req.isAuthenticated()){res.render("submit");}
+  else{
+    res.redirect("/");
+  }
 })
 
 app.get('/auth/google',
@@ -125,7 +144,24 @@ app.post("/login",(req,res)=>{
   })
 
 });
-
+app.post("/submit", (req,res)=>{
+  const summittedSecret=req.body.secret;
+  console.log(req.user.id);
+  User.findById(req.user.id, (err, foundUser)=>{
+    if(err){
+      console.log(err);
+    }
+    else{
+      if(foundUser)
+      {
+        foundUser.secret=summittedSecret;
+        foundUser.save(()=>{
+          res.redirect("/secrets");
+        });
+      }
+    }
+  })
+})
 
 app.listen(3000,()=>{
   console.log("Server Started on port 3000");
